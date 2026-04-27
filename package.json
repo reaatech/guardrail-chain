@@ -1,0 +1,100 @@
+{
+  "name": "guardrail-chain",
+  "version": "0.1.0",
+  "description": "Composable, budget-aware input/output guardrail pipeline framework for AI/LLM applications",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./guardrails": {
+      "types": "./dist/guardrails.d.ts",
+      "import": "./dist/guardrails.js"
+    },
+    "./observability": {
+      "types": "./dist/observability.d.ts",
+      "import": "./dist/observability.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reaatech/guardrail-chain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/reaatech/guardrail-chain/issues"
+  },
+  "homepage": "https://github.com/reaatech/guardrail-chain#readme",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests examples",
+    "lint:fix": "eslint src tests examples --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"*.md\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"*.md\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "example": "tsx examples/basic-usage.ts",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "guardrail",
+    "llm",
+    "ai",
+    "pipeline",
+    "safety",
+    "moderation",
+    "pii",
+    "prompt-injection"
+  ],
+  "author": "Rick Somers <rick@reaatech.com> (https://reaatech.com)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.3.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,js,md}": [
+      "prettier --write"
+    ],
+    "*.ts": [
+      "eslint --fix"
+    ]
+  }
+}
