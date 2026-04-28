@@ -16,7 +16,7 @@ const guardrailSchema = z.object({
   type: z.enum(['input', 'output']),
   enabled: z.boolean(),
   timeout: z.number().positive().optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
   shortCircuitOnFail: z.boolean().optional(),
   essential: z.boolean().optional(),
   priority: z.number().optional(),
