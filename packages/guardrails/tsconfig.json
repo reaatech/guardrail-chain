@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "../..",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@reaatech/guardrail-chain": ["../guardrail-chain/src/index.ts"],
+      "@reaatech/guardrail-chain-observability": ["../observability/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

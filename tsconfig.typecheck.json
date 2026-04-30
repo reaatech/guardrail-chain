@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@reaatech/guardrail-chain": ["./packages/guardrail-chain/src/index.ts"],
+      "@reaatech/guardrail-chain-guardrails": ["./packages/guardrails/src/index.ts"],
+      "@reaatech/guardrail-chain-observability": ["./packages/observability/src/index.ts"],
+      "@reaatech/guardrail-chain-config": ["./packages/config/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*", "examples/*/src/**/*"]
+}

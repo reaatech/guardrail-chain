@@ -1,17 +1,55 @@
 # AI Agent Guidelines for Guardrail Chain
 
-This document provides guidelines for AI agents (like Kimi, Cline, etc.) working on the Guardrail Chain project. It outlines how agents should approach development tasks, interact with the codebase, and maintain consistency with project standards.
+This document provides guidelines for AI agents working on the Guardrail Chain monorepo. It outlines how agents should approach development tasks, interact with the codebase, and maintain consistency with project standards.
 
 ## Agent Role & Responsibilities
 
 AI agents assisting with Guardrail Chain development should:
 
-1. **Follow Project Conventions**: Adhere to established coding standards, architecture patterns, and documentation practices
-2. **Maintain Type Safety**: Always use strict TypeScript typing, avoid `any` types
-3. **Prioritize Testing**: Write comprehensive tests with >95% coverage target
-4. **Document Thoroughly**: Include JSDoc comments, update relevant documentation
-5. **Consider Performance**: Be mindful of latency budgets and optimization opportunities
-6. **Ensure Observability**: Add proper logging, metrics, and tracing support
+1. **Follow Project Conventions** — adhere to established coding standards, architecture patterns, and documentation practices
+2. **Maintain Type Safety** — always use strict TypeScript typing, avoid `any` types
+3. **Prioritize Testing** — write comprehensive tests with co-located `*.test.ts` files
+4. **Document Thoroughly** — include JSDoc comments, update relevant documentation
+5. **Consider Performance** — be mindful of latency budgets and optimization opportunities
+6. **Ensure Observability** — add proper logging, metrics, and tracing support
+
+## Project Structure
+
+Guardrail Chain is a **pnpm monorepo** with four publishable packages under the `@reaatech` scope:
+
+```
+guardrail-chain/
+├── packages/
+│   ├── guardrail-chain/       → @reaatech/guardrail-chain (core)
+│   ├── guardrails/            → @reaatech/guardrail-chain-guardrails
+│   ├── observability/         → @reaatech/guardrail-chain-observability
+│   └── config/                → @reaatech/guardrail-chain-config
+├── examples/basic-usage/      → private example package
+├── pnpm-workspace.yaml
+├── turbo.json
+├── biome.json
+├── .changeset/
+└── tsconfig.json              (base — extended by all packages)
+```
+
+### Package dependency graph
+
+```
+observability (no internal deps)
+     ↑
+guardrail-chain (depends on observability)
+     ↑       ↑
+guardrails  config
+```
+
+### Key conventions
+
+- **`workspace:*`** protocol for internal package dependencies
+- **Turborepo** for build orchestration (`turbo.json` defines pipeline)
+- **Changesets** for versioning and changelog generation
+- **Biome** for linting and formatting (single tool, no Prettier/ESLint)
+- **Co-located tests** — `*.test.ts` next to source files
+- **Dual ESM/CJS output** — every package builds both via tsup
 
 ## Development Workflow
 
@@ -19,23 +57,24 @@ AI agents assisting with Guardrail Chain development should:
 
 Before starting any development task:
 
-- Review existing documentation (ARCHITECTURE.md, DEV_PLAN.md, CONTRIBUTING.md)
-- Understand the current project structure and patterns
-- Identify related files and dependencies
+- Review existing documentation (ARCHITECTURE.md, CONTRIBUTING.md)
+- Understand the current package structure and dependency graph
+- Identify which package(s) the change affects
 - Plan the implementation approach
 
 ### 2. Implementation Guidelines
 
 #### Code Structure
 
+When adding a new guardrail to `packages/guardrails/src/`:
+
 ```typescript
-// Follow this pattern for new guardrails
-import type { Guardrail, GuardrailResult, ChainContext } from '../core/types.js';
+import type { Guardrail, GuardrailResult, ChainContext } from '@reaatech/guardrail-chain';
 
 export class MyGuardrail implements Guardrail<InputType, OutputType> {
   readonly id = 'my-guardrail';
   readonly name = 'My Guardrail';
-  readonly type = 'input' as const; // or 'output'
+  readonly type = 'input' as const;
   enabled = true;
   timeout = 5000;
 
@@ -45,8 +84,7 @@ export class MyGuardrail implements Guardrail<InputType, OutputType> {
     const startTime = Date.now();
 
     try {
-      // Implementation
-      return { passed: true, output: result, metadata: { duration: Date.now() - startTime } };
+      return { passed: true, output: input, metadata: { duration: Date.now() - startTime } };
     } catch (error) {
       return {
         passed: false,
@@ -58,7 +96,11 @@ export class MyGuardrail implements Guardrail<InputType, OutputType> {
 }
 ```
 
+Import from `@reaatech/guardrail-chain` for core types and utilities. Never use relative paths across package boundaries.
+
 #### Testing Pattern
+
+Tests are **co-located** next to source files as `*.test.ts`:
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -71,7 +113,8 @@ describe('MyGuardrail', () => {
   });
 
   it('should handle valid input', async () => {
-    // Test implementation
+    const result = await guardrail.execute('test input', createMockContext());
+    expect(result.passed).toBe(true);
   });
 });
 ```
@@ -84,41 +127,29 @@ Before completing any task:
 - [ ] Code is formatted (`pnpm format`)
 - [ ] Linting passes (`pnpm lint`)
 - [ ] Type checking passes (`pnpm typecheck`)
-- [ ] Documentation is updated
-- [ ] No console errors or warnings
-
-## Agent Skills
-
-Agents have access to specialized skills located in the `skills/` directory:
-
-- **`project-context.md`**: Understanding project structure and architecture
-- **`typescript-dev.md`**: TypeScript development best practices
-- **`testing.md`**: Testing strategies and patterns
-- **`guardrail-dev.md`**: Developing new guardrails
-- **`documentation.md`**: Writing and updating documentation
-- **`code-review.md`**: Code review checklist and standards
-- **`performance.md`**: Performance optimization guidelines
-- **`security.md`**: Security considerations and best practices
+- [ ] Build succeeds (`pnpm build`)
+- [ ] Documentation is updated (README.md, ARCHITECTURE.md if applicable)
+- [ ] No console errors or warnings in production code
 
 ## Communication Protocol
 
 When working on tasks, agents should:
 
-1. **Acknowledge Understanding**: Confirm understanding of requirements
-2. **Ask Clarifying Questions**: If requirements are ambiguous
-3. **Provide Progress Updates**: For complex or multi-step tasks
-4. **Explain Decisions**: Justify architectural or implementation choices
-5. **Highlight Trade-offs**: Discuss pros and cons of different approaches
+1. **Acknowledge Understanding** — confirm understanding of requirements
+2. **Ask Clarifying Questions** — if requirements are ambiguous
+3. **Provide Progress Updates** — for complex or multi-step tasks
+4. **Explain Decisions** — justify architectural or implementation choices
+5. **Highlight Trade-offs** — discuss pros and cons of different approaches
 
 ## Error Handling
 
 When encountering issues:
 
-1. **Analyze Root Cause**: Investigate why the error occurred
-2. **Check Documentation**: Review existing docs for solutions
-3. **Search Codebase**: Look for similar patterns or existing solutions
-4. **Propose Solutions**: Offer multiple approaches when possible
-5. **Learn from Errors**: Document lessons learned for future reference
+1. **Analyze Root Cause** — investigate why the error occurred
+2. **Check Documentation** — review existing docs for solutions
+3. **Search Codebase** — look for similar patterns or existing solutions
+4. **Propose Solutions** — offer multiple approaches when possible
+5. **Learn from Errors** — document lessons learned for future reference
 
 ## Project-Specific Considerations
 
@@ -131,14 +162,15 @@ When encountering issues:
 ### Observability
 
 - Add structured logging with correlation IDs
-- Include performance metrics
-- Support distributed tracing
+- Include performance metrics via `getMetrics()`
+- Support distributed tracing via `getTracer()`
+- Default implementations are no-ops; consumers install adapters via `setLogger`/`setMetrics`/`setTracer`
 
 ### Error Recovery
 
 - Implement graceful degradation
 - Provide clear error messages
-- Support retry logic where appropriate
+- Support retry logic where appropriate via `withRetry()`
 
 ### Security
 
@@ -146,30 +178,33 @@ When encountering issues:
 - Sanitize user-provided data
 - Follow principle of least privilege
 
+## Monorepo Tooling
+
+| Tool | Purpose | Command |
+|------|---------|---------|
+| Biome | Lint + format | `pnpm lint` / `pnpm format` |
+| Turbo | Build orchestration | `pnpm build` (orchestrates per-package builds) |
+| Changesets | Versioning | `pnpm changeset` → PR → `pnpm version-packages` |
+| tsup | Per-package build | Handled by `turbo run build` |
+| Vitest | Testing | `pnpm test` (orchestrates per-package tests) |
+| TypeScript | Type checking | `pnpm typecheck` (uses `tsconfig.typecheck.json`) |
+
 ## GitHub Integration
 
 - **Username**: `reaatech`
 - **Repository**: `https://github.com/reaatech/guardrail-chain`
 - **Conventional Commits**: Use standard commit message format
-- **PR Templates**: Follow PR description templates from CONTRIBUTING.md
-
-## Continuous Learning
-
-Agents should:
-
-- Stay updated on project changes and evolution
-- Learn from code reviews and feedback
-- Adapt to new patterns and best practices
-- Contribute to improving development processes
+- **Versioning**: Changesets-based, with `changesets/action` in CI
 
 ## Resources
 
-- **Main Documentation**: ARCHITECTURE.md, DEV_PLAN.md, CONTRIBUTING.md
-- **Human-Facing Overview**: README.md (check for public API changes)
-- **Code Examples**: Check `examples/` directory
-- **Type Definitions**: Review `src/core/types.ts`
-- **Existing Guardrails**: Study implementations in `src/guardrails/`
+- **Main Documentation**: ARCHITECTURE.md, CONTRIBUTING.md
+- **Overview**: README.md (root + per-package READMEs)
+- **Code Examples**: `examples/basic-usage/src/index.ts`
+- **Type Definitions**: `packages/guardrail-chain/src/types.ts`
+- **Existing Guardrails**: `packages/guardrails/src/`
+- **CI Configuration**: `.github/workflows/ci.yml`
 
 ---
 
-_This document is maintained by the development team and AI agents. Last updated: 2026-04-22_
+_This document is maintained by the development team and AI agents. Last updated: 2026-04-30_

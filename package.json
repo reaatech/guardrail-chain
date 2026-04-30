@@ -1,35 +1,10 @@
 {
-  "name": "guardrail-chain",
+  "name": "guardrail-chain-monorepo",
   "version": "0.1.0",
+  "private": true,
   "description": "Composable, budget-aware input/output guardrail pipeline framework for AI/LLM applications",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./guardrails": {
-      "types": "./dist/guardrails.d.ts",
-      "import": "./dist/guardrails.js"
-    },
-    "./observability": {
-      "types": "./dist/observability.d.ts",
-      "import": "./dist/observability.js"
-    },
-    "./config": {
-      "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
-  "sideEffects": false,
+  "license": "MIT",
+  "author": "Rick Somers <rick@reaatech.com> (https://reaatech.com)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/reaatech/guardrail-chain.git"
@@ -38,64 +13,36 @@
     "url": "https://github.com/reaatech/guardrail-chain/issues"
   },
   "homepage": "https://github.com/reaatech/guardrail-chain#readme",
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "lint": "eslint src tests examples",
-    "lint:fix": "eslint src tests examples --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"*.md\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"*.md\"",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
-    "example": "tsx examples/basic-usage.ts",
-    "prepare": "husky"
-  },
-  "keywords": [
-    "guardrail",
-    "llm",
-    "ai",
-    "pipeline",
-    "safety",
-    "moderation",
-    "pii",
-    "prompt-injection"
-  ],
-  "author": "Rick Somers <rick@reaatech.com> (https://reaatech.com)",
-  "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
   },
   "packageManager": "pnpm@10.33.0",
-  "dependencies": {
-    "js-yaml": "^4.1.1",
-    "zod": "^4.3.6"
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/js-yaml": "^4.0.9",
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^25.6.0",
-    "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^10.2.1",
-    "eslint-config-prettier": "^10.1.8",
     "husky": "^9.0.0",
-    "lint-staged": "^16.4.0",
-    "prettier": "^3.3.0",
-    "tsup": "^8.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.0.0",
-    "vite": "^6.0.0",
-    "vitest": "^4.1.5"
-  },
-  "lint-staged": {
-    "*.{ts,js,md}": [
-      "prettier --write"
-    ],
-    "*.ts": [
-      "eslint --fix"
-    ]
+    "turbo": "^2.0.0",
+    "typescript": "^6.0.3"
   }
 }
