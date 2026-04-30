@@ -2,84 +2,139 @@
 
 ## System Overview
 
-Guardrail Chain is a modular, budget-aware pipeline framework for composing input/output guardrails in AI/LLM applications. The architecture prioritizes performance, extensibility, and production readiness.
+Guardrail Chain is a **pnpm monorepo** providing a composable, budget-aware input/output guardrail pipeline framework for AI/LLM applications. The architecture prioritizes performance, extensibility, and production readiness with a modular package structure under the `@reaatech` scope.
 
 ## Core Design Principles
 
-1. **Composability**: Each guardrail is an independent, testable unit
-2. **Short-Circuit Logic**: Fail fast when possible to minimize latency
-3. **Budget Awareness**: Respect latency and token constraints
-4. **Type Safety**: Full TypeScript support with strict typing
-5. **Observability**: Comprehensive logging, metrics, and tracing
-6. **Zero Configuration**: Sensible defaults with optional customization
+1. **Composability** — Each guardrail is an independent, testable unit implementing the `Guardrail<TInput, TOutput>` interface
+2. **Short-Circuit Logic** — Fail fast on blocking guardrail failures to minimize latency
+3. **Budget Awareness** — Respect latency and token constraints; skip non-essential guardrails under pressure
+4. **Type Safety** — Full TypeScript support with strict typing; no `any` in the public API
+5. **Observability** — Pluggable logging, metrics, and tracing interfaces (no-op by default)
+6. **Zero-Friction Configuration** — Sensible defaults with optional file-based and env-based configuration
+
+## Monorepo Structure
+
+```
+guardrail-chain/
+├── packages/
+│   ├── guardrail-chain/       → @reaatech/guardrail-chain
+│   │   └── src/               core types, chain, builder, budget, context,
+│   │                          errors, helpers, retry, circuit-breaker, cache
+│   ├── guardrails/            → @reaatech/guardrail-chain-guardrails
+│   │   └── src/               13 guardrail implementations + CachedGuardrail wrapper
+│   ├── observability/         → @reaatech/guardrail-chain-observability
+│   │   └── src/               Logger, MetricsCollector, Tracer/Span interfaces
+│   └── config/                → @reaatech/guardrail-chain-config
+│       └── src/               loader (JSON/YAML/env), Zod validator
+├── examples/basic-usage/      private example package
+├── pnpm-workspace.yaml
+├── turbo.json                 build orchestration
+├── biome.json                 formatting + linting
+├── .changeset/                versioning + changelogs
+└── tsconfig.json              base config extended by all packages
+```
+
+### Dependency Graph
+
+```
+@reaatech/guardrail-chain-observability  (no internal deps)
+         ↑
+@reaatech/guardrail-chain  (depends on observability)
+         ↑              ↑
+guardrails          config
+```
+
+### Package Design Rationale
+
+- **`guardrail-chain`** — The foundation. Holds the `Guardrail` interface and all core orchestration. Every other package depends on it.
+- **`guardrail-chain-observability`** — Zero internal dependencies. Standalone interfaces that `guardrail-chain` consumes. Consumers swap implementations via `setLogger()`/`setMetrics()`/`setTracer()`.
+- **`guardrail-chain-guardrails`** — All built-in guardrails live here. Depends only on `guardrail-chain` for the `Guardrail` interface, types, and utilities.
+- **`guardrail-chain-config`** — Configuration loading and validation. Depends on `guardrail-chain` for types and `guardrail-chain-observability` for logging.
 
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Application Layer                        │
-│  (Express Middleware, Next.js API Route, Direct SDK Usage)      │
-└────────────────────────────┬────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                      Application Layer                          │
+│  (Express Middleware, Next.js API Route, Direct SDK Usage)     │
+└────────────────────────────┬───────────────────────────────────┘
                              │
                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Chain Engine                              │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              GuardrailChain (Orchestrator)                │   │
-│  │  • Sequential/Parallel Execution                          │   │
-│  │  • Short-Circuit Logic                                    │   │
-│  │  • Budget Enforcement                                     │   │
-│  │  • Error Handling & Recovery                              │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└────────────────────────────┬────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                       Chain Engine                              │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │            GuardrailChain (Orchestrator)                  │  │
+│  │  • Sequential Execution with budget-aware scheduling      │  │
+│  │  • Short-Circuit Logic (per-guardrail configurable)       │  │
+│  │  • Budget Enforcement (latency + token)                   │  │
+│  │  • Error Handling with retry + timeout                    │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────┬───────────────────────────────────┘
                              │
           ┌──────────────────┼──────────────────┐
           ▼                  ▼                  ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│  Input Phase    │ │  Execution      │ │ Output Phase    │
-│  Guardrails     │ │  (LLM Call)     │ │  Guardrails     │
+│  Input Phase    │ │   LLM Call      │ │ Output Phase    │
+│  Guardrails     │ │  (your code)    │ │  Guardrails     │
 │                 │ │                 │ │                 │
 │ • PII Redaction │ │                 │ │ • PII Scan      │
 │ • Injection     │ │                 │ │ • Hallucination │
 │ • Topic Check   │ │                 │ │ • Toxicity      │
-│ • Cost Precheck │ │                 │ │                 │
+│ • Cost Precheck │ │                 │ │ • Sentiment     │
+│ • Rate Limiter  │ │                 │ │                 │
+│ • Language Det. │ │                 │ │                 │
+│ • Moderation    │ │                 │ │                 │
+│ • Memory Limit  │ │                 │ │                 │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
           │                  │                  │
           └──────────────────┼──────────────────┘
                              │
                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Cross-Cutting Concerns                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Config    │  │ Observability│  │   Budget    │             │
-│  │   System    │  │   System     │  │  Manager    │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                   Cross-Cutting Concerns                        │
+│  ┌────────────┐ ┌──────────────┐ ┌─────────────┐              │
+│  │   Config   │ │ Observability│ │   Budget    │              │
+│  │   System   │ │   System     │ │  Manager    │              │
+│  └────────────┘ └──────────────┘ └─────────────┘              │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ## Core Components
 
 ### 1. Guardrail Interface
 
-The fundamental building block - each guardrail is a function that processes input and returns a result.
+The fundamental building block. Every guardrail must implement this interface.
 
 ```typescript
-// Core guardrail interface
 interface Guardrail<TInput = unknown, TOutput = unknown> {
-  id: string;
-  name: string;
-  type: 'input' | 'output';
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'input' | 'output';
   enabled: boolean;
   timeout?: number;
+  essential?: boolean;
+  priority?: number;
+  estimatedCostMs?: number;
+  shortCircuitOnFail?: boolean;
 
-  // Main execution method
   execute(input: TInput, context: ChainContext): Promise<GuardrailResult<TOutput>>;
-
-  // Optional: validation method for configuration
   validateConfig?(config: unknown): boolean;
 }
+```
 
-// Result of guardrail execution
+**Key fields:**
+
+| Field | Purpose |
+|-------|---------|
+| `priority` | Lower = earlier execution. Used for budget-aware scheduling. Default: `50`. |
+| `estimatedCostMs` | Rough latency estimate. BudgetManager uses this to decide whether to skip. Default: `50`. |
+| `essential` | If `true`, the guardrail always runs even when the budget is exceeded. Default: `false`. |
+| `shortCircuitOnFail` | If `true` (default), a failed guardrail halts the phase immediately. Set `false` to continue past failures. |
+
+### 2. GuardrailResult
+
+```typescript
 interface GuardrailResult<TOutput = unknown> {
   passed: boolean;
   output?: TOutput;
@@ -91,8 +146,13 @@ interface GuardrailResult<TOutput = unknown> {
   };
   error?: Error;
 }
+```
 
-// Context passed between guardrails
+### 3. ChainContext
+
+State threaded through every guardrail execution:
+
+```typescript
 interface ChainContext {
   correlationId: string;
   userId?: string;
@@ -104,574 +164,311 @@ interface ChainContext {
 }
 ```
 
-### 2. Chain Engine
+### 4. Chain Engine (`GuardrailChain`)
 
-The orchestrator that manages guardrail execution with budget awareness and short-circuit logic.
+The orchestrator in `packages/guardrail-chain/src/chain.ts`. Responsibilities:
+
+1. **Input Phase** — executes input guardrails sequentially, transforming input at each step
+2. **Output Phase** — executes output guardrails on the (post-LLM) output
+3. **Budget Enforcement** — uses `BudgetManager` to track and enforce latency/token budgets
+4. **Timeout Handling** — each guardrail runs with a timeout; times out → error result
+5. **Retry Support** — when configured, transient failures are retried with exponential backoff
+6. **Short-Circuit Logic** — if a guardrail fails and `shortCircuitOnFail` is `true`, the phase halts immediately
 
 ```typescript
 class GuardrailChain {
-  private inputGuardrails: Guardrail[];
-  private outputGuardrails: Guardrail[];
-  private config: ChainConfig;
-  private budgetManager: BudgetManager;
-
-  async execute(input: unknown, options?: ExecutionOptions): Promise<ChainResult> {
-    // 1. Initialize context and budget
-    // 2. Execute input guardrails with short-circuit logic
-    // 3. Return transformed input for LLM
-    // 4. Execute output guardrails on LLM response
-    // 5. Return final result with metrics
-  }
-
-  async executeInput(input: unknown): Promise<InputResult> {
-    // Execute only input guardrails
-  }
-
-  async executeOutput(output: unknown, context: ChainContext): Promise<OutputResult> {
-    // Execute only output guardrails
-  }
+  addGuardrail(guardrail: Guardrail): this;
+  execute(input: unknown, options?: ExecutionOptions): Promise<ChainResult>;
+  executeInput(input: unknown, options?: ExecutionOptions): Promise<ChainResult>;
+  executeOutput(output: unknown, context: ChainContext): Promise<ChainResult>;
 }
 ```
 
-### 3. Budget Manager
+### 5. Budget Manager
 
-Tracks and enforces latency and token budgets throughout the chain execution.
+Tracks latency and token budgets. Sourced from `packages/guardrail-chain/src/budget.ts`.
 
 ```typescript
 class BudgetManager {
-  private totalLatencyBudget: number;
-  private totalTokenBudget: number;
-  private usedLatency: number = 0;
-  private usedTokens: number = 0;
-
-  canExecute(estimatedCostMs: number): boolean {
-    // Check if guardrail can be executed within remaining budget
-    return this.hasRemainingBudget(estimatedCostMs);
-  }
-
-  recordExecution(duration: number, tokens?: number): void {
-    this.usedLatency += duration;
-    if (tokens) this.usedTokens += tokens;
-  }
-
-  getRemainingBudget(): BudgetState {
-    return {
-      remainingLatency: this.totalLatencyBudget - this.usedLatency,
-      remainingTokens: this.totalTokenBudget - this.usedTokens,
-      usedLatency: this.usedLatency,
-      usedTokens: this.usedTokens,
-    };
-  }
+  canExecute(estimatedCostMs: number): boolean;
+  recordExecution(duration: number, tokens?: number): void;
+  getRemainingBudget(): BudgetState;
+  isExceeded(): boolean;
 }
 ```
 
-### 4. Configuration System
+**Budget-aware scheduling algorithm:**
 
-Flexible configuration supporting YAML/JSON files, environment variables, and programmatic setup.
+1. Filter out disabled guardrails
+2. Sort by priority (lower = earlier), then by estimated cost (cheaper first)
+3. Select guardrails that fit within remaining budget — skip non-essential ones that don't
+4. Essential guardrails always run regardless of budget
+
+### 6. Fluent Builder (`ChainBuilder`)
 
 ```typescript
-interface ChainConfig {
-  budget: BudgetConfig;
-  guardrails: GuardrailConfig[];
-  observability: ObservabilityConfig;
-  errorHandling: ErrorHandlingConfig;
-}
-
-interface BudgetConfig {
-  maxLatencyMs: number;
-  maxTokens: number;
-  skipSlowGuardrailsUnderPressure: boolean;
-}
-
-interface GuardrailConfig {
-  id: string;
-  type: 'input' | 'output';
-  enabled: boolean;
-  timeout?: number;
-  config?: Record<string, unknown>;
-  /** Stop chain execution on failure */
-  shortCircuitOnFail: boolean;
-  /** Mark as essential: cannot be skipped even under budget pressure */
-  essential?: boolean;
-  /** Execution priority (lower = earlier). Used for budget-aware scheduling. */
-  priority?: number;
-  /** Estimated latency cost in milliseconds. Used by BudgetManager. */
-  estimatedCostMs?: number;
+class ChainBuilder {
+  withBudget(budget: BudgetConfig): this;
+  withGuardrail(guardrail: Guardrail): this;
+  withGuardrails(guardrails: Guardrail[]): this;
+  withErrorHandling(config: ErrorHandlingConfig): this;
+  withObservability(config: ObservabilityConfig): this;
+  withSlowGuardrailSkipping(enabled: boolean): this;
+  build(): GuardrailChain;
 }
 ```
 
-### 5. Public API & Module Design
+### 7. Configuration System
 
-The library is distributed as **ESM-only** (Node.js 18+) with a single bundled entry point via `tsup`.
+In `packages/config/`. Loads chain configuration from files (`.json`, `.yaml`, `.yml`) and environment variables (`GUARDRAIL_CHAIN_*`), validates via Zod, and deep-merges the results.
 
 ```typescript
-// Main entry — chain engine and core types
-import { GuardrailChain, ChainBuilder } from 'guardrail-chain';
-import type { Guardrail, GuardrailResult, ChainContext } from 'guardrail-chain';
+import { loadConfig } from '@reaatech/guardrail-chain-config';
 
-// Guardrails subpath
-import { PIIRedaction, ToxicityFilter } from 'guardrail-chain/guardrails';
-
-// Observability subpath
-import { getLogger, getMetrics } from 'guardrail-chain/observability';
+const config = await loadConfig({
+  filePath: './guardrail.config.yaml',
+  useEnv: true,
+  envPrefix: 'GUARDRAIL_CHAIN',
+});
 ```
 
-**Key decisions:**
+### 8. Module Design & Public API
 
-- **ESM-only** simplifies the build, avoids dual-package hazards, and aligns with modern tooling.
-- **Subpath exports** keep bundle size down for consumers who only need guardrails or observability.
-- **Top-level types** are re-exported from `guardrail-chain` so most consumers only need one import.
+Every package ships **dual ESM/CJS output** (built with `tsup --format cjs,esm --dts`). Consumers import from the package they need:
+
+```typescript
+// Core framework
+import { GuardrailChain, ChainBuilder, BudgetManager } from '@reaatech/guardrail-chain';
+import type { Guardrail, ChainContext } from '@reaatech/guardrail-chain';
+
+// Built-in guardrails
+import { PIIRedaction, PromptInjection, ToxicityFilter } from '@reaatech/guardrail-chain-guardrails';
+
+// Observability
+import { setLogger, ConsoleLogger } from '@reaatech/guardrail-chain-observability';
+
+// Configuration
+import { loadConfig } from '@reaatech/guardrail-chain-config';
+```
+
+The `@reaatech/guardrail-chain` package re-exports observability getter/setter functions for single-import convenience.
 
 ## Built-in Guardrails
 
-### Input Guardrails
+All guardrails live in `packages/guardrails/src/` and use **regex-based** detection — no external API calls, no ML models, deterministic behavior.
 
-#### 1. PII Redaction
+### Input Guardrails (8)
 
-- **Purpose**: Detect and redact personally identifiable information
-- **Implementation**: Pattern matching + NER models
-- **Config**: Custom patterns, redaction strategy (mask/replace/remove)
-- **Performance**: ~20-50ms for typical input
+| Guardrail | ID | Detection Method |
+|-----------|----|-----------------|
+| `PIIRedaction` | `pii-redaction` | Regex patterns for emails, phones, SSNs, credit cards + Luhn algorithm check |
+| `PromptInjection` | `prompt-injection` | Regex patterns for jailbreak prompts, "ignore previous instructions", role-reversal |
+| `TopicBoundary` | `topic-boundary` | Keyword allowlist/blocklist matching against topic domains |
+| `CostPrecheck` | `cost-precheck` | Heuristic token estimation (~4 chars per token) and budget validation |
+| `RateLimiter` | `rate-limiter` | Sliding-window counter keyed by userId/sessionId |
+| `LanguageDetector` | `language-detector` | Keyword fingerprint matching for en/es/fr/de/zh/ja |
+| `ContentModeration` | `content-moderation` | Configurable regex rule engine with category tagging |
+| `MemoryLimit` | `memory-limit` | `process.memoryUsage().heapUsed` check against configured limit |
 
-#### 2. Prompt Injection Detection
+### Output Guardrails (4)
 
-- **Purpose**: Identify common injection patterns and jailbreak attempts
-- **Implementation**: Pattern matching + ML classifier
-- **Config**: Sensitivity levels, custom patterns
-- **Performance**: ~10-30ms
+| Guardrail | ID | Detection Method |
+|-----------|----|-----------------|
+| `PIIScan` | `pii-scan` | Same regex logic as `PIIRedaction`, applied to LLM outputs |
+| `HallucinationCheck` | `hallucination-check` | Heuristic pattern matching for speculative language ("I think", "probably", etc.) + optional external verifier callback |
+| `ToxicityFilter` | `toxicity-filter` | Regex patterns for insults, violence, hate speech, profanity per category |
+| `SentimentAnalysis` | `sentiment-analysis` | Positive/negative word-count scoring with configurable threshold |
 
-#### 3. Topic Boundary Check
+### Wrappers (1)
 
-- **Purpose**: Ensure input stays within allowed topics/domains
-- **Implementation**: Keyword matching + semantic similarity
-- **Config**: Allowed topics, similarity thresholds
-- **Performance**: ~15-40ms
-
-#### 4. Cost Precheck
-
-- **Purpose**: Estimate and validate token/cost budgets before LLM call
-- **Implementation**: Token counting + cost calculation
-- **Config**: Max tokens, cost limits, estimation strategy
-- **Performance**: ~5-10ms
-
-### Output Guardrails
-
-#### 5. Output PII Scan
-
-- **Purpose**: Detect PII in LLM responses before showing to user
-- **Implementation**: Same as input PII but with different thresholds
-- **Config**: Sensitivity levels, action on detection
-- **Performance**: ~20-50ms
-
-#### 6. Hallucination Check
-
-- **Purpose**: Flag potential factual inconsistencies or made-up information
-- **Implementation**: Template guardrail. Ships with a lightweight heuristic (keyword overlap, entity count mismatch). Real fact verification requires an external API or secondary LLM call and is outside the core framework's scope.
-- **Config**: Confidence thresholds, fact sources, optional external verifier
-- **Performance**: ~5-10ms for heuristic; seconds if calling an external LLM
-
-#### 7. Toxicity Filter
-
-- **Purpose**: Detect harmful, offensive, or inappropriate content
-- **Implementation**: ML classifier (toxicity detection model)
-- **Config**: Toxicity thresholds, category filtering
-- **Performance**: ~30-80ms
+| Wrapper | Purpose |
+|---------|---------|
+| `CachedGuardrail` | Wraps any guardrail with an LRU cache (TTL-based, keyed by input hash + config fingerprint) |
 
 ## Execution Flow
 
 ### Complete Chain Execution
 
-```typescript
-async function executeCompleteChain(
-  input: string,
-  chain: GuardrailChain,
-  llmFunction: (input: string) => Promise<string>,
-): Promise<ChainResult> {
-  // 1. Execute input guardrails
-  const inputResult = await chain.executeInput(input);
-  if (!inputResult.passed) {
-    return {
-      success: false,
-      error: 'Input guardrail failed',
-      failedGuardrail: inputResult.failedGuardrail,
-      metadata: inputResult.metadata,
-    };
-  }
-
-  // 2. Call LLM with transformed input
-  const llmOutput = await llmFunction(inputResult.transformedInput);
-
-  // 3. Execute output guardrails
-  const outputResult = await chain.executeOutput(llmOutput, inputResult.context);
-  if (!outputResult.passed) {
-    return {
-      success: false,
-      error: 'Output guardrail failed',
-      failedGuardrail: outputResult.failedGuardrail,
-      metadata: outputResult.metadata,
-    };
-  }
-
-  // 4. Return final result
-  return {
-    success: true,
-    output: outputResult.transformedOutput,
-    metadata: {
-      ...inputResult.metadata,
-      ...outputResult.metadata,
-      totalLatency: inputResult.metadata.latency + outputResult.metadata.latency,
-      totalTokens: inputResult.metadata.tokens + outputResult.metadata.tokens,
-    },
-  };
-}
+```
+1. Create chain context with correlation ID and budget state
+2. Execute input guardrails sequentially:
+   a. Sort by priority, then estimated cost
+   b. Skip non-essential guardrails that exceed remaining budget
+   c. Run each with timeout; retry on transient failures
+   d. Short-circuit on failure unless shortCircuitOnFail is false
+   e. Transform input at each step (output of G(N) becomes input to G(N+1))
+3. ── YOUR LLM CALL GOES HERE ──
+4. Execute output guardrails on the LLM response:
+   a. Same budget/scheduling/short-circuit logic as input phase
+5. Return ChainResult with success/failure, output, metadata, and diagnostics
 ```
 
 ### Short-Circuit Logic
 
-```typescript
-private async executeGuardrailsWithShortCircuit(
-  guardrails: Guardrail[],
-  context: ChainContext
-): Promise<GuardrailResult[]> {
-  const results: GuardrailResult[] = [];
+- Default: `shortCircuitOnFail = true` — a failed guardrail stops the phase immediately
+- Override: set `shortCircuitOnFail = false` to collect all guardrail results even on failure
+- Skipped guardrails (budget exceeded) report `passed: true, metadata: { skipped: true }`
 
-  for (const guardrail of guardrails) {
-    // Check budget before execution
-    const estimatedCost = guardrail.config?.estimatedCostMs ?? 50;
-    if (!this.budgetManager.canExecute(estimatedCost)) {
-      results.push({
-        passed: true,
-        metadata: { skipped: true, reason: 'budget_exceeded' },
-      });
-      continue;
-    }
+### Budget-Aware Scheduling
 
-    // Execute guardrail with timeout
-    const result = await this.executeWithTimeout(guardrail, context);
-    results.push(result);
-
-    // Short-circuit on failure if configured
-    if (!result.passed && guardrail.config.shortCircuitOnFail) {
-      break;
-    }
-
-    // Update budget
-    this.budgetManager.recordExecution(
-      result.metadata.duration,
-      result.metadata.tokensUsed
-    );
-  }
-
-  return results;
-}
-```
-
-### Budget-Aware Scheduling Algorithm
-
-When `skipSlowGuardrailsUnderPressure` is enabled, the chain reorders and skips guardrails using this algorithm:
-
-```typescript
-function scheduleGuardrails(guardrails: Guardrail[], budget: BudgetState): Guardrail[] {
-  // 1. Filter out disabled guardrails
-  const enabled = guardrails.filter((g) => g.enabled);
-
-  // 2. Sort by priority (lower = earlier), then by estimated cost
-  const sorted = enabled.sort((a, b) => {
-    const pa = a.config?.priority ?? 50;
-    const pb = b.config?.priority ?? 50;
-    if (pa !== pb) return pa - pb;
-    return (a.config?.estimatedCostMs ?? 50) - (b.config?.estimatedCostMs ?? 50);
-  });
-
-  // 3. Select guardrails that fit within remaining budget
-  let remaining = budget.remainingLatency;
-  const selected: Guardrail[] = [];
-
-  for (const g of sorted) {
-    const cost = g.config?.estimatedCostMs ?? 50;
-    const essential = g.config?.essential ?? false;
-
-    if (cost <= remaining || essential) {
-      selected.push(g);
-      remaining -= cost;
-    }
-    // Non-essential guardrails that don't fit are silently skipped
-  }
-
-  return selected;
-}
-```
-
-**Rules:**
-
-1. **Essential guardrails** always run, even if the budget is exceeded.
-2. **Non-essential guardrails** are skipped if their `estimatedCostMs` exceeds remaining budget.
-3. **Priority** determines execution order; tie-break by estimated cost (cheaper first).
-4. Budget is checked again at runtime because estimates may be wrong.
-
-## Error Handling Strategy
-
-### Error Types
-
-```typescript
-enum GuardrailErrorType {
-  TIMEOUT = 'TIMEOUT',
-  BUDGET_EXCEEDED = 'BUDGET_EXCEEDED',
-  VALIDATION_FAILED = 'VALIDATION_FAILED',
-  EXECUTION_FAILED = 'EXECUTION_FAILED',
-  CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
-}
-
-class GuardrailError extends Error {
-  type: GuardrailErrorType;
-  guardrailId: string;
-  recoverable: boolean;
-
-  constructor(
-    message: string,
-    type: GuardrailErrorType,
-    guardrailId: string,
-    recoverable: boolean = false,
-  ) {
-    super(message);
-    this.type = type;
-    this.guardrailId = guardrailId;
-    this.recoverable = recoverable;
-  }
-}
-```
-
-### Recovery Strategies
-
-1. **Timeout**: Retry with exponential backoff (max 3 attempts)
-2. **Budget Exceeded**: Skip remaining non-critical guardrails
-3. **Validation Failed**: Use default configuration or fail fast
-4. **Execution Failed**: Log error and continue if recoverable
-5. **Configuration Error**: Fail fast with clear error message
+1. **Essential guardrails** always run regardless of budget
+2. **Non-essential guardrails** are skipped when `estimatedCostMs > remainingLatency`
+3. Guardrails sort by **priority** (lower = earlier), then **estimated cost** (cheaper first)
+4. Runtime budget is rechecked — estimates may be wrong, the `canExecute()` check prevents overrun
 
 ## Observability
 
-### Structured Logging
+All observability defaults to **no-op implementations**. Consumers install adapters via setter functions. Defined in `packages/observability/`.
+
+### Logger
 
 ```typescript
-interface LogEntry {
-  timestamp: string;
-  correlationId: string;
-  guardrailId: string;
-  action: 'start' | 'complete' | 'error' | 'skip';
-  duration?: number;
-  tokensUsed?: number;
-  passed?: boolean;
-  error?: string;
-  metadata?: Record<string, unknown>;
-}
+import { setLogger, ConsoleLogger } from '@reaatech/guardrail-chain-observability';
+setLogger(new ConsoleLogger());
 ```
 
-### Metrics (Prometheus Format)
+Every guardrail execution produces structured log entries with `correlationId`, `guardrailId`, duration, and pass/fail status.
+
+### Metrics
 
 ```typescript
-// Counter metrics
-guardrail_executions_total{guardrail_id, result}
-guardrail_errors_total{guardrail_id, error_type}
-chain_executions_total{result}
-
-// Histogram metrics
-guardrail_execution_duration_seconds{guardrail_id}
-guardrail_tokens_used_total{guardrail_id}
-chain_execution_duration_seconds
-
-// Gauge metrics
-budget_remaining_latency_seconds
-budget_remaining_tokens
-active_chains
+import { setMetrics } from '@reaatech/guardrail-chain-observability';
+setMetrics(myPrometheusCollector);
 ```
 
-### Distributed Tracing (OpenTelemetry)
+Built-in metrics:
+- `guardrail.executed` (counter, labels: `guardrail_id`, `result`)
+- `guardrail.duration` (histogram, labels: `guardrail_id`, `guardrail_type`)
+- `guardrail.skipped` (counter, labels: `guardrail_id`, `reason`)
+- `chain.duration` / `chain.input.duration` / `chain.output.duration` (histograms)
+- `chain.success` / `chain.input.failed` / `chain.output.failed` (counters)
+
+### Tracing
 
 ```typescript
-// Each chain execution creates a trace
-const tracer = trace.getTracer('guardrail-chain');
-
-const span = tracer.startSpan('execute_chain');
-span.setAttribute('correlation_id', correlationId);
-span.setAttribute('input_length', input.length);
-
-// Each guardrail creates a child span
-const guardrailSpan = tracer.startSpan('execute_guardrail', {
-  parent: span,
-});
-guardrailSpan.setAttribute('guardrail_id', guardrail.id);
-guardrailSpan.setAttribute('guardrail_type', guardrail.type);
+import { setTracer } from '@reaatech/guardrail-chain-observability';
+setTracer(myOpenTelemetryTracer);
 ```
 
-## Performance Optimizations
+Each chain execution creates an `execute_chain` span with `correlation_id` attribute.
 
-### 1. Caching Layer
+## Error Handling
 
-- Cache results of expensive guardrails (e.g., hallucination check)
-- Use LRU cache with TTL
-- Cache key based on input hash + guardrail config
+### Error Classes
 
-### 2. Parallel Execution
+| Class | Code | Recoverable | When |
+|-------|------|-------------|------|
+| `GuardrailError` | — | varies | Base class — carries `type`, `guardrailId`, and `recoverable` flag |
+| `TimeoutError` | `TIMEOUT` | yes | Guardrail exceeded its timeout |
+| `BudgetExceededError` | `BUDGET_EXCEEDED` | yes | Latency or token budget exceeded |
+| `ValidationError` | `VALIDATION_FAILED` | no | Configuration or input validation failed |
 
-- Execute independent guardrails in parallel
-- Respect dependencies and ordering constraints
-- Aggregate results with proper error handling
+### Recovery Strategies
 
-### 3. Lazy Loading
+- **Timeout**: retry via `withRetry()` with exponential backoff + jitter (configurable max retries, initial delay, cap)
+- **Budget exceeded**: skip remaining non-critical guardrails; essential guardrails still run
+- **Validation failed**: fail fast with descriptive error message
+- **Execution failed**: log error; if guardrail is configured `shortCircuitOnFail`, halt the phase
 
-- Load guardrail modules on demand
-- Reduce initial bundle size
-- Support dynamic guardrail registration
+## Utility Classes
 
-### 4. Streaming Support
+Located in `packages/guardrail-chain/src/`. These are opt-in; the chain does not apply them automatically.
 
-- Process large inputs in chunks
-- Stream output for real-time filtering
-- Backpressure handling
-
-## Security Considerations
-
-### 1. Input Validation
-
-- Validate all configuration inputs
-- Sanitize user-provided data
-- Prevent injection attacks in guardrail configs
-
-### 2. Rate Limiting
-
-- Built-in rate limiting guardrail
-- Protect against abuse
-- Configurable limits per user/session
-
-### 3. Data Privacy
-
-- Never log sensitive input/output
-- Support data anonymization
-- GDPR compliance features
-
-### 4. Dependency Security
-
-- Regular security audits
-- Minimal dependencies
-- Automated vulnerability scanning
+| Utility | Purpose |
+|---------|---------|
+| `CircuitBreaker` | CLOSED/OPEN/HALF_OPEN state machine — prevents cascading failures for external-service guardrails |
+| `LRUCache<K, V>` | TTL-aware LRU cache — configurable max size and expiry |
+| `withRetry<T>()` | Execute async function with exponential backoff, jitter, and configurable retry predicate |
 
 ## Testing Strategy
 
-### Unit Tests
+### Test Organization
 
-- Test each guardrail in isolation
-- Mock external dependencies
-- Test edge cases and error scenarios
+Tests are **co-located** next to source files as `*.test.ts`. Each package runs its own test suite via Vitest.
 
-### Integration Tests
+```
+packages/guardrail-chain/src/
+├── types.ts
+├── chain.ts
+├── chain.test.ts         ← co-located
+├── builder.ts
+├── builder.test.ts       ← co-located
+└── ...
+```
 
-- Test complete chain execution
-- Test budget enforcement
-- Test short-circuit logic
+### Test Categories
 
-### Performance Tests
+- **Unit tests** — each guardrail, each utility class, each function tested in isolation
+- **Integration tests** — `chain-integration.test.ts` verifies full chain execution with multiple guardrails, budget enforcement, short-circuit logic, and correlation ID propagation
+- **Coverage** — 95% thresholds for lines, functions, and statements; 90% for branches (configured per-package in `vitest.config.ts`)
 
-- Benchmark individual guardrails
-- Test chain execution under load
-- Measure memory usage and leaks
+### Running Tests
 
-### Security Tests
+```bash
+pnpm test            # turbo orchestrates all packages
+pnpm test:coverage   # with coverage reports
+```
 
-- Test for injection vulnerabilities
-- Test rate limiting effectiveness
-- Test data privacy compliance
+## Build & Tooling
 
-## Deployment Considerations
+| Tool | Config | Purpose |
+|------|--------|---------|
+| **tsup** | Per-package (in `scripts.build`) | Builds dual ESM/CJS output + `.d.ts` declarations into `dist/` |
+| **Turborepo** | `turbo.json` | Orchestrates builds in dependency order, caches outputs |
+| **Biome** | `biome.json` | Linting + formatting (replaces Prettier + ESLint) |
+| **Vitest** | Per-package `vitest.config.ts` | Test runner, coverage (v8 provider) |
+| **Changesets** | `.changeset/config.json` | Versioning + changelog generation; `changesets/action@v1` in CI |
 
-### 1. Environment Support
+### Build Output
 
-- Node.js 18+
-- Browser (with limitations)
-- Edge runtimes (Cloudflare Workers, Vercel Edge)
-
-### 2. Scalability
-
-- Stateless design for horizontal scaling
-- Redis support for distributed caching
-- Database support for persistent state
-
-### 3. Monitoring
-
-- Health check endpoints
-- Readiness/liveness probes
-- Performance dashboards
-
-### 4. Configuration Management
-
-- Environment-based configuration
-- Feature flags for gradual rollout
-- A/B testing support
+Each package produces:
+```
+dist/
+├── index.js        (ESM)
+├── index.cjs       (CJS)
+├── index.d.ts      (TypeScript declarations)
+└── index.d.cts     (CJS-compatible declarations)
+```
 
 ## Extension Points
 
-### 1. Custom Guardrails
+### Custom Guardrails
+
+Implement the `Guardrail<TInput, TOutput>` interface from `@reaatech/guardrail-chain`:
 
 ```typescript
-class CustomGuardrail implements Guardrail {
-  id = 'custom-guardrail';
-  name = 'My Custom Guardrail';
-  type = 'input';
-  enabled = true;
+import type { Guardrail, GuardrailResult, ChainContext } from '@reaatech/guardrail-chain';
 
-  async execute(input: unknown, context: ChainContext): Promise<GuardrailResult> {
-    // Custom implementation
-    return { passed: true, output: input };
+class CustomModeration implements Guardrail<string, string> {
+  readonly id = 'custom-moderation';
+  readonly name = 'Custom Moderation';
+  readonly type = 'output' as const;
+  enabled = true;
+  timeout = 5000;
+
+  constructor(private readonly blocklist: string[]) {}
+
+  async execute(input: string, _context: ChainContext): Promise<GuardrailResult<string>> {
+    const start = Date.now();
+    const flagged = this.blocklist.some((word) => input.toLowerCase().includes(word));
+
+    return {
+      passed: !flagged,
+      output: input,
+      metadata: { duration: Date.now() - start },
+    };
   }
 }
 ```
 
-### 2. Custom Middleware
+### Custom Observability Adapters
 
-```typescript
-interface ChainMiddleware {
-  beforeExecute?(context: ChainContext): Promise<void>;
-  afterExecute?(result: ChainResult): Promise<void>;
-  onError?(error: Error, context: ChainContext): Promise<void>;
-}
-```
+Implement the `Logger`, `MetricsCollector`, or `Tracer`/`Span` interfaces from `@reaatech/guardrail-chain-observability` and install them via the setter functions.
 
-### 3. Custom Budget Strategies
+### Custom Configuration Sources
 
-```typescript
-interface BudgetStrategy {
-  shouldSkipGuardrail(guardrail: Guardrail, budget: BudgetState): boolean;
+Implement the `loadConfigFromFile` / `loadConfigFromEnv` pattern to add new configuration sources. Use `validateConfig()` or `validateConfigSafe()` from `@reaatech/guardrail-chain-config` for Zod validation.
 
-  calculateGuardrailPriority(guardrail: Guardrail, context: ChainContext): number;
-}
-```
+---
 
-## Future Considerations
-
-### 1. AI-Powered Guardrails
-
-- Use LLMs for more sophisticated detection
-- Adaptive thresholds based on context
-- Self-improving guardrails
-
-### 2. Distributed Guardrails
-
-- Microservice architecture for guardrails
-- gRPC communication between guardrails
-- Service mesh integration
-
-### 3. Real-time Analytics
-
-- Live dashboard for chain performance
-- Anomaly detection in guardrail behavior
-- Predictive budget management
-
-### 4. Multi-modal Support
-
-- Image guardrails (NSFW detection, etc.)
-- Audio guardrails (transcription validation)
-- Video guardrails (content moderation)
-
-## Conclusion
-
-This architecture provides a robust, scalable foundation for building production-ready guardrail pipelines. The design emphasizes performance, extensibility, and observability while maintaining simplicity for common use cases.
+_This document reflects the architecture as of 2026-04-30._

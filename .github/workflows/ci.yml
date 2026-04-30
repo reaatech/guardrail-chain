@@ -6,38 +6,291 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
 jobs:
-  quality:
+  install:
+    name: Install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm typecheck
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-      - name: Lint
-        run: pnpm lint
+  format:
+    name: Format
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Format check
-        run: pnpm format:check
+      - uses: pnpm/action-setup@v4
 
-      - name: Test
-        run: pnpm test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Test with coverage
-        run: pnpm test:coverage
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
 
-      - name: Build
-        run: pnpm build
+      - run: pnpm biome format --write .
+      - run: git diff --exit-code
+
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+
+      - run: pnpm lint
+
+  typecheck:
+    name: Type check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+
+      - run: pnpm typecheck
+
+  build:
+    name: Build
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - run: pnpm build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-dist
+          path: packages/*/dist
+          retention-days: 1
+
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+          path: packages
+
+      - run: pnpm test
+
+  coverage:
+    name: Coverage
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            examples/*/node_modules
+            ~/.pnpm-store
+          key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          fail-on-cache-miss: true
+
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+          path: packages
+
+      - run: pnpm test:coverage
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: packages/*/coverage
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo '| Package | Lines | Functions | Branches |' >> $GITHUB_STEP_SUMMARY
+          echo '|---------|-------|-----------|----------|' >> $GITHUB_STEP_SUMMARY
+          for dir in packages/*/; do
+            name=$(basename "$dir")
+            summary="$dir/coverage/coverage-summary.json"
+            if [ -f "$summary" ]; then
+              lines=$(jq '.total.lines.pct' "$summary")
+              fns=$(jq '.total.functions.pct' "$summary")
+              br=$(jq '.total.branches.pct' "$summary")
+              echo "| $name | $lines% | $fns% | $br% |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  all-checks:
+    name: All Checks Passed
+    needs: [format, lint, typecheck, build, test, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          echo "format:    ${{ needs.format.result }}"
+          echo "lint:      ${{ needs.lint.result }}"
+          echo "typecheck: ${{ needs.typecheck.result }}"
+          echo "build:     ${{ needs.build.result }}"
+          echo "test:      ${{ needs.test.result }}"
+          echo "coverage:  ${{ needs.coverage.result }}"
+
+          if [ "${{ needs.format.result }}" != "success" ]; then
+            echo "::error::Format check failed"
+            exit 1
+          fi
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "::error::Lint check failed"
+            exit 1
+          fi
+          if [ "${{ needs.typecheck.result }}" != "success" ]; then
+            echo "::error::Type check failed"
+            exit 1
+          fi
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "::error::Build failed"
+            exit 1
+          fi
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "::error::Tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.coverage.result }}" != "success" ]; then
+            echo "::error::Coverage failed"
+            exit 1
+          fi
+          echo "All checks passed"
