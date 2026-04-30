@@ -1,0 +1,51 @@
+{
+  "name": "@reaatech/guardrail-chain",
+  "version": "0.1.0",
+  "description": "Core types, chain orchestration, and utilities for the Guardrail Chain framework",
+  "license": "MIT",
+  "author": "Rick Somers <rick@reaatech.com> (https://reaatech.com)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reaatech/guardrail-chain.git",
+    "directory": "packages/guardrail-chain"
+  },
+  "homepage": "https://github.com/reaatech/guardrail-chain/tree/main/packages/guardrail-chain#readme",
+  "bugs": {
+    "url": "https://github.com/reaatech/guardrail-chain/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "sideEffects": false,
+  "keywords": ["guardrail", "llm", "ai", "pipeline", "safety", "moderation"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@reaatech/guardrail-chain-observability": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "tsup": "^8.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
