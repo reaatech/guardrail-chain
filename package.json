@@ -22,7 +22,7 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "build": "turbo run build",
+    "build": "pnpm install && turbo run build",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "lint": "biome check .",
