@@ -24,9 +24,18 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false,
-  "keywords": ["config", "configuration", "validation", "guardrail"],
+  "keywords": [
+    "config",
+    "configuration",
+    "validation",
+    "guardrail"
+  ],
   "publishConfig": {
     "access": "public"
   },

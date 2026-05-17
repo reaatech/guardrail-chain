@@ -24,9 +24,19 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false,
-  "keywords": ["observability", "logging", "metrics", "tracing", "guardrail"],
+  "keywords": [
+    "observability",
+    "logging",
+    "metrics",
+    "tracing",
+    "guardrail"
+  ],
   "publishConfig": {
     "access": "public"
   },

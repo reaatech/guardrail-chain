@@ -1,6 +1,5 @@
 import type { ChainContext, Guardrail, GuardrailResult } from '@reaatech/guardrail-chain';
-import { LRUCache } from '@reaatech/guardrail-chain';
-import { hashString } from '@reaatech/guardrail-chain';
+import { hashString, LRUCache } from '@reaatech/guardrail-chain';
 
 interface CachedGuardrailConfig {
   ttlMs?: number;

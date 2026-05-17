@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ConsoleLogger,
-  NoOpLogger,
   getLogger,
   getMetrics,
   getTracer,
+  NoOpLogger,
   setLogger,
   setMetrics,
   setTracer,

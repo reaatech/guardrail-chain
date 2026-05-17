@@ -24,9 +24,21 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false,
-  "keywords": ["guardrail", "llm", "ai", "pii", "prompt-injection", "toxicity", "moderation"],
+  "keywords": [
+    "guardrail",
+    "llm",
+    "ai",
+    "pii",
+    "prompt-injection",
+    "toxicity",
+    "moderation"
+  ],
   "publishConfig": {
     "access": "public"
   },
