@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { type Span, type Tracer, getTracer, setTracer } from './tracing.js';
+import { getTracer, type Span, setTracer, type Tracer } from './tracing.js';
 
 describe('Tracing', () => {
   it('should return default no-op tracer', () => {

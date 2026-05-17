@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { type MetricsCollector, getMetrics, setMetrics } from './metrics.js';
+import { getMetrics, type MetricsCollector, setMetrics } from './metrics.js';
 
 describe('Metrics', () => {
   it('should return default no-op metrics', () => {
