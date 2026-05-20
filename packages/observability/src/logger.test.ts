@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConsoleLogger, type Logger, NoOpLogger, getLogger, setLogger } from './logger.js';
+import { ConsoleLogger, getLogger, type Logger, NoOpLogger, setLogger } from './logger.js';
 
 describe('Logger', () => {
   it('should default to a silent NoOpLogger', () => {

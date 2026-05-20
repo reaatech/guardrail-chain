@@ -13,13 +13,9 @@ describe('loadConfig', () => {
 
   afterEach(async () => {
     await rm(tmpDir, { recursive: true, force: true });
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_CONFIG;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_MAX_LATENCY_MS;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_MAX_TOKENS;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_SKIP_SLOW;
   });
 
@@ -106,13 +102,9 @@ describe('loadConfig', () => {
 
 describe('loadConfigFromEnv edge cases', () => {
   afterEach(() => {
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_CONFIG;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_MAX_LATENCY_MS;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_MAX_TOKENS;
-    // biome-ignore lint/performance/noDelete: process.env requires delete
     delete process.env.GUARDRAIL_CHAIN_BUDGET_SKIP_SLOW;
   });
 
