@@ -65,6 +65,8 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
       - run: pnpm biome format --write .
       - run: git diff --exit-code
 
@@ -93,6 +95,8 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
 
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
       - run: pnpm lint
 
   typecheck:
@@ -119,6 +123,8 @@ jobs:
             ~/.pnpm-store
           key: deps-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           fail-on-cache-miss: true
+
+      - run: pnpm install --frozen-lockfile --prefer-offline
 
       - run: pnpm typecheck
 
